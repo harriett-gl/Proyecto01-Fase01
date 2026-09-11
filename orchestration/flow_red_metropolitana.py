@@ -1,0 +1,234 @@
+import os
+import sys
+import time
+import uuid
+import subprocess
+from pathlib import Path
+
+import psycopg2
+from psycopg2 import sql
+from prefect import flow, task, get_run_logger
+
+
+RAIZ_PROYECTO = Path(__file__).resolve().parent.parent
+CARPETA_DBT = RAIZ_PROYECTO / "dbt_red_metropolitana"
+SCRIPT_STAGING = RAIZ_PROYECTO / "scripts" / "cargar_staging.py"
+
+
+def conexion_postgresql():
+    return psycopg2.connect(
+        host=os.getenv("REDMETRO_DB_HOST", "localhost"),
+        port=os.getenv("REDMETRO_DB_PORT", "5432"),
+        database=os.getenv(
+            "REDMETRO_DB_NAME",
+            "red_metropolitana"
+        ),
+        user=os.getenv("REDMETRO_DB_USER", "red_admin"),
+        password=os.environ["REDMETRO_DB_PASSWORD"]
+    )
+
+
+def contar_esquema(cursor, esquema):
+    cursor.execute(
+        """
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema = %s
+          AND table_type = 'BASE TABLE'
+        ORDER BY table_name
+        """,
+        (esquema,)
+    )
+
+    tablas = [fila[0] for fila in cursor.fetchall()]
+    total = 0
+
+    for tabla in tablas:
+        consulta = sql.SQL(
+            "SELECT COUNT(*) FROM {}.{}"
+        ).format(
+            sql.Identifier(esquema),
+            sql.Identifier(tabla)
+        )
+
+        cursor.execute(consulta)
+        total += cursor.fetchone()[0]
+
+    return total
+
+
+@task
+def cargar_staging():
+    logger = get_run_logger()
+    logger.info("Cargando archivos en Staging.")
+
+    resultado = subprocess.run(
+        [sys.executable, str(SCRIPT_STAGING)],
+        cwd=RAIZ_PROYECTO,
+        text=True,
+        capture_output=True
+    )
+
+    if resultado.stdout:
+        logger.info(resultado.stdout)
+
+    if resultado.returncode != 0:
+        raise RuntimeError(resultado.stderr)
+
+    logger.info("Carga de Staging finalizada.")
+
+
+@task
+def ejecutar_dbt():
+    logger = get_run_logger()
+    logger.info("Ejecutando dbt build.")
+
+    resultado = subprocess.run(
+        ["dbt", "build"],
+        cwd=CARPETA_DBT,
+        text=True,
+        capture_output=True
+    )
+
+    if resultado.stdout:
+        logger.info(resultado.stdout)
+
+    if resultado.returncode != 0:
+        raise RuntimeError(resultado.stderr)
+
+    logger.info("dbt build finalizó correctamente.")
+
+
+@task
+def registrar_auditoria(
+    corrida_id,
+    fecha_inicio,
+    duracion_segundos
+):
+    logger = get_run_logger()
+
+    with conexion_postgresql() as conexion:
+        with conexion.cursor() as cursor:
+            cursor.execute("CREATE SCHEMA IF NOT EXISTS audit")
+
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS audit.ejecuciones_pipeline (
+                    corrida_id UUID PRIMARY KEY,
+                    fecha_inicio TIMESTAMPTZ NOT NULL,
+                    fecha_fin TIMESTAMPTZ NOT NULL
+                        DEFAULT CURRENT_TIMESTAMP,
+                    duracion_segundos NUMERIC(12, 2) NOT NULL,
+                    estado TEXT NOT NULL,
+                    registros_staging BIGINT NOT NULL,
+                    registros_silver BIGINT NOT NULL,
+                    registros_gold BIGINT NOT NULL,
+                    registros_cuarentena BIGINT NOT NULL
+                )
+                """
+            )
+
+            staging = contar_esquema(cursor, "staging")
+            silver = contar_esquema(cursor, "silver")
+            gold = contar_esquema(cursor, "gold")
+            cuarentena = contar_esquema(
+                cursor,
+                "quarantine"
+            )
+
+            cursor.execute(
+                """
+                INSERT INTO audit.ejecuciones_pipeline (
+                    corrida_id,
+                    fecha_inicio,
+                    duracion_segundos,
+                    estado,
+                    registros_staging,
+                    registros_silver,
+                    registros_gold,
+                    registros_cuarentena
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    corrida_id,
+                    fecha_inicio,
+                    duracion_segundos,
+                    "EXITOSA",
+                    staging,
+                    silver,
+                    gold,
+                    cuarentena
+                )
+            )
+
+    logger.info("Auditoría registrada correctamente.")
+
+
+@task
+def vaciar_staging():
+    logger = get_run_logger()
+
+    with conexion_postgresql() as conexion:
+        with conexion.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = 'staging'
+                  AND table_type = 'BASE TABLE'
+                ORDER BY table_name
+                """
+            )
+
+            tablas = [fila[0] for fila in cursor.fetchall()]
+
+            if tablas:
+                objetos = [
+                    sql.SQL("{}.{}").format(
+                        sql.Identifier("staging"),
+                        sql.Identifier(tabla)
+                    )
+                    for tabla in tablas
+                ]
+
+                consulta = sql.SQL(
+                    "TRUNCATE TABLE {}"
+                ).format(sql.SQL(", ").join(objetos))
+
+                cursor.execute(consulta)
+
+    logger.info(
+        "Staging fue vaciado; Bronze permanece conservado."
+    )
+
+
+@flow(name="Pipeline Red Metropolitana")
+def pipeline_red_metropolitana():
+    logger = get_run_logger()
+    inicio = time.time()
+    fecha_inicio = time.strftime(
+        "%Y-%m-%d %H:%M:%S+00"
+    )
+    corrida_id = str(uuid.uuid4())
+
+    logger.info(f"Iniciando corrida {corrida_id}")
+
+    cargar_staging()
+    ejecutar_dbt()
+
+    duracion = round(time.time() - inicio, 2)
+
+    registrar_auditoria(
+        corrida_id,
+        fecha_inicio,
+        duracion
+    )
+
+    vaciar_staging()
+
+    logger.info("Pipeline terminado correctamente.")
+
+
+if __name__ == "__main__":
+    pipeline_red_metropolitana()

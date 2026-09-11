@@ -1,0 +1,22 @@
+version: 2
+
+models:
+  - name: transurbano_transacciones
+    description: Transacciones limpias y normalizadas de Transurbano.
+
+    columns:
+      - name: usuario_origen_id
+        data_tests:
+          - not_null
+
+      - name: fecha_hora_local
+        data_tests:
+          - not_null
+
+      - name: cod_parada
+        data_tests:
+          - not_null
+
+      - name: monto_gtq
+        data_tests:
+          - not_null

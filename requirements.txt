@@ -1,0 +1,7 @@
+pandas
+pyarrow
+kafka-python
+psycopg2-binary
+python-dotenv
+prefect
+dbt-postgres

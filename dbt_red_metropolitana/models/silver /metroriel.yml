@@ -1,0 +1,31 @@
+version: 2
+
+models:
+  - name: metroriel_viajes
+    description: Viajes completos y válidos de MetroRiel.
+
+    columns:
+      - name: viaje_id
+        data_tests:
+          - not_null
+          - unique
+
+      - name: usuario_origen_id
+        data_tests:
+          - not_null
+
+      - name: fecha_hora_entrada
+        data_tests:
+          - not_null
+
+      - name: fecha_hora_salida
+        data_tests:
+          - not_null
+
+      - name: estacion_salida_id
+        data_tests:
+          - not_null
+
+      - name: duracion_segundos
+        data_tests:
+          - not_null

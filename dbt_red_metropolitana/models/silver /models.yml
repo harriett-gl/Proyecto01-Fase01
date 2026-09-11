@@ -1,0 +1,68 @@
+version: 2
+
+models:
+  - name: dim_usuario_hist
+    description: Historial SCD Tipo 2 del padrón de Transmetro.
+    columns:
+      - name: usuario_version_sk
+        data_tests:
+          - not_null
+          - unique
+      - name: usuario_natural_id
+        data_tests:
+          - not_null
+      - name: valido_desde
+        data_tests:
+          - not_null
+
+  - name: dim_usuario_actual
+    description: Estado actual de cada tarjeta de Transmetro.
+    columns:
+      - name: usuario_natural_id
+        data_tests:
+          - not_null
+          - unique
+      - name: activo
+        data_tests:
+          - not_null
+
+  - name: cat_usuario_transurbano
+    description: Catálogo mínimo de usuarios de Transurbano.
+    columns:
+      - name: usuario_origen_id
+        data_tests:
+          - not_null
+          - unique
+
+  - name: cat_usuario_metroriel
+    description: Catálogo mínimo de usuarios de MetroRiel.
+    columns:
+      - name: usuario_origen_id
+        data_tests:
+          - not_null
+          - unique
+
+  - name: cat_usuario_aerometro
+    description: Catálogo mínimo de usuarios de Aerómetro.
+    columns:
+      - name: usuario_origen_id
+        data_tests:
+          - not_null
+          - unique
+
+  - name: transmetro_validaciones
+    description: Validaciones limpias de Transmetro sin duplicados.
+    columns:
+      - name: validacion_id
+        data_tests:
+          - not_null
+          - unique
+      - name: usuario_origen_id
+        data_tests:
+          - not_null
+      - name: fecha_hora_local
+        data_tests:
+          - not_null
+      - name: monto_gtq
+        data_tests:
+          - not_null

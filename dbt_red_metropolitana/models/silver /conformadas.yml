@@ -1,0 +1,40 @@
+version: 2
+
+models:
+  - name: dim_usuario_conformado
+    description: Usuarios de los cuatro operadores con una llave conformada por modo.
+
+    columns:
+      - name: usuario_sk
+        data_tests:
+          - not_null
+          - unique
+
+      - name: usuario_origen_id
+        data_tests:
+          - not_null
+
+      - name: modo
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - TRANSMETRO
+                  - TRANSURBANO
+                  - METRORIEL
+                  - AEROMETRO
+
+  - name: dim_zona_conformada
+    description: Catálogo conformado de zonas de los cuatro operadores.
+
+    columns:
+      - name: zona_sk
+        data_tests:
+          - not_null
+          - unique
+
+      - name: zona_nombre
+        data_tests:
+          - not_null
+          - unique

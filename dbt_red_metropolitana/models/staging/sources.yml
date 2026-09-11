@@ -1,0 +1,29 @@
+version: 2
+
+sources:
+  - name: staging
+    database: red_metropolitana
+    schema: staging
+
+    tables:
+      - name: cdc_padron_usuarios
+        columns:
+          - name: seq
+            data_tests:
+              - not_null
+              - unique
+          - name: op
+            data_tests:
+              - not_null
+          - name: tarjeta
+            data_tests:
+              - not_null
+
+      - name: transmetro_validaciones
+      - name: transurbano_transacciones
+      - name: metroriel_viajes_raw
+      - name: aerometro_boardings
+      - name: tm_estaciones
+      - name: tu_paradas
+      - name: mr_estaciones
+      - name: am_estaciones
