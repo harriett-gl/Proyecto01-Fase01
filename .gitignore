@@ -1,0 +1,11 @@
+.venv/
+.idea/
+__pycache__/
+*.pyc
+.env
+
+datos_red/
+lake/
+logs/
+target/
+dbt_packages/
