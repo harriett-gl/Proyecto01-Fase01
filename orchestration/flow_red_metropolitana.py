@@ -7,24 +7,25 @@ from pathlib import Path
 
 import psycopg2
 from psycopg2 import sql
+from dotenv import load_dotenv
 from prefect import flow, task, get_run_logger
 
 
 RAIZ_PROYECTO = Path(__file__).resolve().parent.parent
 CARPETA_DBT = RAIZ_PROYECTO / "dbt_red_metropolitana"
 SCRIPT_STAGING = RAIZ_PROYECTO / "scripts" / "cargar_staging.py"
-
+load_dotenv(RAIZ_PROYECTO / ".env")
 
 def conexion_postgresql():
     return psycopg2.connect(
-        host=os.getenv("REDMETRO_DB_HOST", "localhost"),
-        port=os.getenv("REDMETRO_DB_PORT", "5432"),
+        host=os.getenv("POSTGRES_HOST", "localhost"),
+        port=os.getenv("POSTGRES_PORT", "5432"),
         database=os.getenv(
-            "REDMETRO_DB_NAME",
+            "POSTGRES_DB",
             "red_metropolitana"
         ),
-        user=os.getenv("REDMETRO_DB_USER", "red_admin"),
-        password=os.environ["REDMETRO_DB_PASSWORD"]
+        user=os.environ["POSTGRES_USER"],
+        password=os.environ["POSTGRES_PASSWORD"]
     )
 
 
@@ -84,7 +85,10 @@ def ejecutar_dbt():
     logger.info("Ejecutando dbt build.")
 
     resultado = subprocess.run(
-        ["dbt", "build"],
+        [
+            "dbt", "build", "--profiles-dir",
+    str(CARPETA_DBT)
+],
         cwd=CARPETA_DBT,
         text=True,
         capture_output=True
