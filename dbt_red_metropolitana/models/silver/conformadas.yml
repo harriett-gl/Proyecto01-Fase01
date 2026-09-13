@@ -8,7 +8,6 @@ models:
       - name: usuario_sk
         data_tests:
           - not_null
-          - unique
 
       - name: usuario_origen_id
         data_tests:

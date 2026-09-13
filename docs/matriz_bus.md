@@ -1,87 +1,93 @@
 # Matriz del bus - Red Metropolitana
 
-## Grano principal
+## Grano de las tablas de hechos
 
-La tabla de hechos principal tendrá una fila por cada abordaje válido
-realizado por un usuario, en un modo de transporte, ubicación y
-fecha-hora determinada.
+### gold.fct_abordajes
 
-Para MetroRiel, cada viaje completo generará un abordaje correspondiente
-a su estación de entrada. La información del destino y la duración se
-conservará en una segunda tabla de hechos de viajes de MetroRiel.
+Una fila representa un abordaje válido realizado por un usuario en Transmetro, Transurbano o Aerómetro, en una ubicación y fecha-hora determinadas.
+
+Las transacciones rechazadas de Transurbano no se consideran abordajes.
+
+### gold.fct_viajes_metroriel
+
+Una fila representa un viaje completo y válido de MetroRiel, desde una estación de entrada hasta una estación de salida.
+
+MetroRiel se conserva en una tabla separada porque registra origen, destino y duración, mientras que los otros operadores solamente registran abordajes.
 
 ## Matriz del bus
 
-| Proceso | Fecha | Hora | Usuario | Modo | Estación o parada | Zona | Línea o ruta | Destino |
-|---|---|---|---|---|---|---|---|---|
-| Abordajes integrados | X | X | X | X | X | X | X | |
-| Viajes completos de MetroRiel | X | X | X | X | X | X | | X |
-| Estado diario del padrón de Transmetro | X | | X | X | | X | | |
+| Proceso | Fecha | Hora entrada o abordaje | Hora salida | Usuario | Modo | Zona origen | Zona destino | Ubicación o estación | Servicio |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Abordajes de Transmetro, Transurbano y Aerómetro | X | X |  | X | X | X |  | X | X |
+| Viajes completos de MetroRiel | X | X | X | X | X | X | X | X |  |
 
 ## Tablas de hechos
 
 ### gold.fct_abordajes
 
-Una fila representa un abordaje válido realizado por un usuario.
-
 Medidas:
 
-- cantidad_abordajes
-- monto_gtq
+- `cantidad_abordajes`
+- `monto_gtq`
+
+Dimensiones relacionadas:
+
+- `gold.dim_fecha`
+- `gold.dim_hora`
+- `gold.dim_usuario`
+- `gold.dim_modo`
+- `gold.dim_zona`
 
 ### gold.fct_viajes_metroriel
 
-Una fila representa un viaje completo de MetroRiel desde la estación
-de entrada hasta la estación de salida.
-
 Medidas:
 
-- cantidad_viajes
-- monto_gtq
-- duracion_segundos
+- `cantidad_viajes`
+- `monto_gtq`
+- `duracion_segundos`
 
-### gold.fct_padron_diario
+Dimensiones relacionadas:
 
-Una fila representa el estado diario de las tarjetas de Transmetro,
-agrupado por fecha, estado y zona de residencia.
-
-Medida:
-
-- tarjetas_activas_fin_dia
+- `gold.dim_fecha`
+- `gold.dim_hora`
+- `gold.dim_usuario`
+- `gold.dim_modo`
+- `gold.dim_zona`
 
 ## Dimensiones conformadas
 
-- gold.dim_fecha
-- gold.dim_hora
-- gold.dim_usuario
-- gold.dim_modo
-- gold.dim_estacion
-- gold.dim_zona
-- gold.dim_linea_ruta
+- `gold.dim_fecha`: calendario común para todos los operadores.
+- `gold.dim_hora`: hora del día, franja horaria y clasificación de hora pico.
+- `gold.dim_usuario`: usuario seudonimizado e identidad aproximada entre operadores.
+- `gold.dim_modo`: catálogo de los cuatro modos de transporte.
+- `gold.dim_zona`: nombres de zona normalizados.
+
+Los campos `ubicacion_codigo` y `servicio` se mantienen como dimensiones degeneradas dentro de la tabla de abordajes debido a que cada operador utiliza catálogos y códigos diferentes.
 
 ## Clasificación de medidas
 
 | Medida | Clasificación | Justificación |
 |---|---|---|
-| cantidad_abordajes | Aditiva | Puede sumarse por fecha, modo, zona y estación |
-| monto_gtq | Aditiva | Puede sumarse para calcular los ingresos |
-| cantidad_viajes | Aditiva | Puede sumarse entre periodos y estaciones |
-| duracion_segundos | Aditiva | Puede sumarse entre viajes individuales |
-| tarjetas_activas_fin_dia | Semi-aditiva | Puede sumarse entre zonas, pero no entre diferentes fechas |
-| promedio_monto_viaje | No aditiva | Debe recalcularse a partir del monto y los viajes |
-| usuarios_distintos | No aditiva | Un usuario puede aparecer en varias zonas o modos |
+| `cantidad_abordajes` | Aditiva | Puede sumarse por fecha, modo, hora y zona. |
+| `monto_gtq` | Aditiva | Puede sumarse para calcular ingresos por cualquier dimensión. |
+| `cantidad_viajes` | Aditiva | Puede sumarse entre fechas, usuarios y estaciones. |
+| `duracion_segundos` | Aditiva | Puede sumarse para obtener el tiempo total acumulado de viaje. |
+| Tarjetas activas a una fecha de corte | Semi-aditiva | Puede sumarse entre zonas, pero no entre fechas porque duplicaría el saldo de usuarios. |
+| Promedio de gasto por viaje | No aditiva | Debe recalcularse dividiendo el monto total entre la cantidad de viajes. |
+| Usuarios distintos | No aditiva | Un mismo usuario puede aparecer en varias zonas, fechas y modos. |
 
 ## Decisiones de diseño
 
-1. El grano principal será un abordaje y no un viaje puerta a puerta,
-porque Transmetro, Transurbano y Aerómetro registran abordajes individuales.
+1. Se eligió el abordaje como grano principal porque Transmetro, Transurbano y Aerómetro registran eventos individuales de entrada.
 
-2. MetroRiel conservará su información adicional en una tabla de hechos
-separada, ya que registra origen, destino y duración.
+2. Los viajes de MetroRiel se almacenan en otra tabla de hechos porque incluyen entrada, salida y duración.
 
-3. Todas las tablas Gold se construirán exclusivamente desde Silver.
+3. Gold solamente lee modelos de Silver mediante referencias de dbt; nunca accede directamente a Bronze.
 
-4. Los registros inválidos serán enviados a cuarentena con el motivo
-de rechazo. No se eliminarán silenciosamente.
+4. Las transacciones rechazadas de Transurbano no cuentan como abordajes exitosos.
 
-5. La llave del usuario será seudonimizada antes de llegar a Gold.
+5. Las llaves originales de los usuarios no se exponen en Gold. Solo se utiliza `usuario_sk`.
+
+6. La identidad entre Transmetro, Transurbano y MetroRiel se aproxima mediante el componente numérico de sus llaves. Aerómetro permanece separado porque su hash no puede relacionarse de manera confiable.
+
+7. Los registros inválidos se conservan en cuarentena con su motivo de rechazo.
