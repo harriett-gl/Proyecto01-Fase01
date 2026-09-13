@@ -8,8 +8,6 @@ select
     'METRORIEL' as modo_nombre,
 
     usuario.usuario_sk,
-    viaje.usuario_origen_id,
-
     zona_entrada.zona_sk as zona_entrada_sk,
     zona_salida.zona_sk as zona_salida_sk,
 

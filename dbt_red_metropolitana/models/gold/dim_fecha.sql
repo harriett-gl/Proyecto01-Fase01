@@ -52,6 +52,9 @@ select
     extract(quarter from fecha)::integer as trimestre,
     extract(isodow from fecha)::integer as dia_semana,
 
+    extract(isodow from fecha) between 1 and 5
+        as es_dia_habil,
+
     extract(isodow from fecha) in (6, 7)
         as es_fin_semana
 

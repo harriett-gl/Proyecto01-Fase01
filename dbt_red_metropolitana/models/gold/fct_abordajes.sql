@@ -28,6 +28,8 @@ with abordajes as (
 
     from {{ ref('transurbano_transacciones') }}
 
+    where transaccion_aprobada = true
+
     union all
 
     select
@@ -77,7 +79,6 @@ select
     abordaje.modo as modo_nombre,
 
     usuario.usuario_sk,
-    abordaje.usuario_origen_id,
 
     zona.zona_sk,
     abordaje.zona_normalizada as zona_nombre,

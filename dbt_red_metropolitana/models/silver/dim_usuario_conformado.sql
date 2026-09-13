@@ -76,8 +76,31 @@ usuarios_con_padron as (
 )
 
 select
-    md5(modo || '|' || usuario_origen_id)
-        as usuario_sk,
+   md5(
+    case
+        when modo = 'TRANSMETRO'
+             and usuario_origen_id ~ '^TC-[0-9]{8}$'
+            then lpad(
+                regexp_replace(usuario_origen_id, '[^0-9]', '', 'g'),
+                10,
+                '0'
+            )
+
+        when modo = 'TRANSURBANO'
+             and usuario_origen_id ~ '^[0-9]{10}$'
+            then usuario_origen_id
+
+        when modo = 'METRORIEL'
+             and usuario_origen_id ~ '^MR[0-9]{7}$'
+            then lpad(
+                regexp_replace(usuario_origen_id, '[^0-9]', '', 'g'),
+                10,
+                '0'
+            )
+
+        else modo || '|' || usuario_origen_id
+    end
+) as usuario_sk,
 
     usuario_origen_id,
     modo,

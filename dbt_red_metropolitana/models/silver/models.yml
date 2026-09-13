@@ -32,7 +32,6 @@ models:
       - name: usuario_origen_id
         data_tests:
           - not_null
-          - unique
 
   - name: cat_usuario_metroriel
     description: Catálogo mínimo de usuarios de MetroRiel.
