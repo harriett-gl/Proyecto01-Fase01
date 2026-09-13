@@ -14,6 +14,10 @@ from prefect import flow, task, get_run_logger
 RAIZ_PROYECTO = Path(__file__).resolve().parent.parent
 CARPETA_DBT = RAIZ_PROYECTO / "dbt_red_metropolitana"
 SCRIPT_STAGING = RAIZ_PROYECTO / "scripts" / "cargar_staging.py"
+SCRIPT_BATCH = RAIZ_PROYECTO / "scripts" / "ingesta_batch.py"
+SCRIPT_CDC = RAIZ_PROYECTO / "scripts" / "ingesta_cdc.py"
+SCRIPT_PRODUCER = RAIZ_PROYECTO / "scripts" / "stream_producer.py"
+SCRIPT_CONSUMER = RAIZ_PROYECTO / "scripts" / "stream_consumer.py"
 load_dotenv(RAIZ_PROYECTO / ".env")
 
 def conexion_postgresql():
@@ -57,6 +61,54 @@ def contar_esquema(cursor, esquema):
 
     return total
 
+@task
+def ejecutar_ingestas_bronze():
+    logger = get_run_logger()
+
+    comandos = [
+        (
+            [sys.executable, str(SCRIPT_BATCH)],
+            "Ingesta Batch"
+        ),
+        (
+            [sys.executable, str(SCRIPT_CDC)],
+            "Ingesta CDC"
+        ),
+        (
+            [sys.executable, str(SCRIPT_PRODUCER), "transmetro"],
+            "Productor Kafka Transmetro"
+        ),
+        (
+            [sys.executable, str(SCRIPT_CONSUMER), "transmetro"],
+            "Consumidor Kafka Transmetro"
+        ),
+        (
+            [sys.executable, str(SCRIPT_PRODUCER), "aerometro"],
+            "Productor Kafka Aerómetro"
+        ),
+        (
+            [sys.executable, str(SCRIPT_CONSUMER), "aerometro"],
+            "Consumidor Kafka Aerómetro"
+        )
+    ]
+
+    for comando, nombre in comandos:
+        logger.info(f"Ejecutando: {nombre}")
+
+        resultado = subprocess.run(
+            comando,
+            cwd=RAIZ_PROYECTO,
+            text=True,
+            capture_output=True
+        )
+
+        if resultado.stdout:
+            logger.info(resultado.stdout)
+
+        if resultado.returncode != 0:
+            raise RuntimeError(
+                f"Falló {nombre}:\n{resultado.stderr}"
+            )
 
 @task
 def cargar_staging():
@@ -86,22 +138,16 @@ def ejecutar_dbt():
 
     resultado = subprocess.run(
         [
-            "dbt", "build", "--profiles-dir",
-    str(CARPETA_DBT)
-],
+            "dbt",
+            "build",
+            "--profiles-dir",
+            str(CARPETA_DBT)
+        ],
+
         cwd=CARPETA_DBT,
         text=True,
         capture_output=True
     )
-
-    if resultado.stdout:
-        logger.info(resultado.stdout)
-
-    if resultado.returncode != 0:
-        raise RuntimeError(resultado.stderr)
-
-    logger.info("dbt build finalizó correctamente.")
-
 
 @task
 def registrar_auditoria(
@@ -218,6 +264,7 @@ def pipeline_red_metropolitana():
 
     logger.info(f"Iniciando corrida {corrida_id}")
 
+    ejecutar_ingestas_bronze()
     cargar_staging()
     ejecutar_dbt()
 

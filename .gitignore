@@ -9,3 +9,6 @@ lake/
 logs/
 target/
 dbt_packages/
+
+dbt_red_metropolitana/.user.yml
+.venv_python314_backup/
