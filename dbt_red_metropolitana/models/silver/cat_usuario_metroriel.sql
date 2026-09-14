@@ -8,8 +8,7 @@ with viajes as (
 )
 
 select distinct
-    viaje_json ->> 'card' as usuario_origen_id,
-    'METRORIEL' as modo
+    viaje_json ->> 'card' as usuario_origen_id
 
 from viajes
 

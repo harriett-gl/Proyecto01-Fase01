@@ -81,7 +81,15 @@ Transurbano se implementó mediante una carga batch debido a que la fuente dispo
 
 ### Bronze
 
-Conserva los datos recibidos en formato Parquet, incluyendo fecha y hora de ingesta. Esta capa mantiene la información original para permitir trazabilidad y reprocesamiento.
+#### Justificación del almacenamiento Bronze
+
+Se eligió un lake local basado en carpetas y archivos Parquet porque permite conservar los datos con su estructura original, acumular nuevas ingestas y particionar físicamente la información por fecha.
+
+Esta decisión también permite almacenar el JSON anidado de MetroRiel como contenido crudo sin obligarlo a adoptar inmediatamente un esquema relacional. La interpretación y normalización de esa estructura se realiza posteriormente en Staging y Silver.
+
+El formato Parquet reduce el tamaño en disco mediante compresión, conserva los tipos de datos y permite reprocesar las fuentes sin modificar los archivos originales. El warehouse se utiliza posteriormente para Staging, Silver, Cuarentena y Gold, donde los datos ya poseen una estructura definida.
+
+Cada registro almacenado en Bronze conserva la marca de tiempo y la fecha de ingesta, junto con información del archivo de origen, para garantizar su trazabilidad.
 
 ### Staging
 
@@ -232,9 +240,9 @@ La evidencia completa está disponible en:
 - Los identificadores originales de los usuarios no se exponen en las tablas Gold.
 - Las dimensiones utilizan llaves sustitutas.
 
-## Autora
+## Autoras
 
-Proyecto académico desarrollado para la Fase 1 del Proyecto Red Metropolitana.
+Proyecto académico desarrollado para la Fase 1 del Proyecto Red Metropolitana por:
 
 💜 Rochelle Esquivel
 🩷 Susana García

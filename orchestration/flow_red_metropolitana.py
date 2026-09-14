@@ -143,11 +143,20 @@ def ejecutar_dbt():
             "--profiles-dir",
             str(CARPETA_DBT)
         ],
-
         cwd=CARPETA_DBT,
         text=True,
         capture_output=True
     )
+
+    if resultado.stdout:
+        logger.info(resultado.stdout)
+
+    if resultado.returncode != 0:
+        raise RuntimeError(
+            f"dbt build falló:\n{resultado.stderr}"
+        )
+
+    logger.info("dbt build finalizó correctamente.")
 
 @task
 def registrar_auditoria(
@@ -256,7 +265,8 @@ def vaciar_staging():
 @flow(name="Pipeline Red Metropolitana")
 def pipeline_red_metropolitana():
     logger = get_run_logger()
-    inicio = time.time()
+    inicio_total = time.time()
+
     fecha_inicio = time.strftime(
         "%Y-%m-%d %H:%M:%S+00"
     )
@@ -264,19 +274,52 @@ def pipeline_red_metropolitana():
 
     logger.info(f"Iniciando corrida {corrida_id}")
 
+    inicio_etapa = time.time()
     ejecutar_ingestas_bronze()
+    duracion_bronze = round(time.time() - inicio_etapa, 2)
+
+    inicio_etapa = time.time()
     cargar_staging()
+    duracion_staging = round(time.time() - inicio_etapa, 2)
+
+    inicio_etapa = time.time()
     ejecutar_dbt()
+    duracion_dbt = round(time.time() - inicio_etapa, 2)
 
-    duracion = round(time.time() - inicio, 2)
+    duracion_procesamiento = round(
+        time.time() - inicio_total,
+        2
+    )
 
+    inicio_etapa = time.time()
     registrar_auditoria(
         corrida_id,
         fecha_inicio,
-        duracion
+        duracion_procesamiento
+    )
+    duracion_auditoria = round(
+        time.time() - inicio_etapa,
+        2
     )
 
+    inicio_etapa = time.time()
     vaciar_staging()
+    duracion_limpieza = round(
+        time.time() - inicio_etapa,
+        2
+    )
+
+    duracion_total = round(time.time() - inicio_total, 2)
+
+    logger.info(
+        "Duraciones por etapa: "
+        f"Bronze={duracion_bronze}s, "
+        f"Staging={duracion_staging}s, "
+        f"dbt={duracion_dbt}s, "
+        f"Auditoría={duracion_auditoria}s, "
+        f"Limpieza={duracion_limpieza}s, "
+        f"Total={duracion_total}s."
+    )
 
     logger.info("Pipeline terminado correctamente.")
 

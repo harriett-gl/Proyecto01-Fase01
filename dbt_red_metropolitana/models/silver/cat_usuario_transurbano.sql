@@ -1,6 +1,5 @@
 select distinct
-    trim(num_tarjeta) as usuario_origen_id,
-    'TRANSURBANO' as modo
+    trim(num_tarjeta) as usuario_origen_id
 
 from {{ source('staging', 'transurbano_transacciones') }}
 

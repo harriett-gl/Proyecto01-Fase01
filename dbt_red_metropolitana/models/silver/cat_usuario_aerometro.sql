@@ -1,6 +1,5 @@
 select distinct
-    trim(user_hash) as usuario_origen_id,
-    'AEROMETRO' as modo
+    trim(user_hash) as usuario_origen_id
 
 from {{ source('staging', 'aerometro_boardings') }}
 

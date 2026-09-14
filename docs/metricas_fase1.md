@@ -11,13 +11,16 @@ El pipeline de la Red Metropolitana fue ejecutado dos veces consecutivas para co
 | Registros Silver | 1,919,887 | 1,919,887 | Idénticos |
 | Registros Gold | 1,718,037 | 1,718,037 | Idénticos |
 | Registros en cuarentena | 18,431 | 18,431 | Idénticos |
-| Duración | 69.18 segundos | 69.86 segundos | Variación normal |
+| Duración | 70.23 segundos | 72.60 segundos | Variación normal |
 
 ## Validación de idempotencia
 
-La segunda ejecución no generó duplicados ni modificó la cantidad de registros procesados. Los resultados de Staging, Silver, Gold y Cuarentena permanecieron iguales.
+| Ejecución | Staging | Silver | Gold | Cuarentena | Duración |
+|---|---:|---:|---:|---:|---:|
+| Primera | 1,730,184 | 1,919,887 | 1,718,037 | 18,431 | 70.23 segundos |
+| Segunda | 1,730,184 | 1,919,887 | 1,718,037 | 18,431 | 72.60 segundos |
 
-Por lo tanto, se confirma que el pipeline es idempotente para el conjunto de datos utilizado.
+La diferencia entre ambas ejecuciones fue de 2.37 segundos. Los conteos permanecieron idénticos, lo que demuestra que el pipeline es idempotente.
 
 ## Indicadores de calidad
 
@@ -29,10 +32,24 @@ Por lo tanto, se confirma que el pipeline es idempotente para el conjunto de dat
 - Usuarios en `dim_usuario`: **70,380**.
 - Ejecuciones exitosas evaluadas: **2**.
 - Fallos registrados durante las ejecuciones evaluadas: **0**.
+- Porcentaje enviado a cuarentena respecto de Bronze: **1.07 %** (`18,431 / 1,730,184 × 100`).
+- Duplicados de torniquete detectados: **1,115**, equivalentes al **0.06 %** del total ingerido.
 
 ## Rendimiento
+### Duración por etapa
 
-El pipeline completo tardó aproximadamente entre **69.18 y 69.86 segundos**. La diferencia de tiempo entre las ejecuciones fue de únicamente 0.68 segundos y no afectó la consistencia de los resultados.
+Las etapas del pipeline fueron medidas durante una ejecución completa adicional.
+
+| Etapa | Duración |
+|---|---:|
+| Ingesta Bronze | 32.22 segundos |
+| Carga Staging | 17.07 segundos |
+| Transformaciones y pruebas dbt | 21.98 segundos |
+| Registro de auditoría | 0.21 segundos |
+| Limpieza de Staging | 0.04 segundos |
+| **Total** | **71.53 segundos** |
+
+El pipeline completo tardó entre **70.23 y 72.60 segundos**. La diferencia entre ambas ejecuciones fue de **2.37 segundos** y no afectó la consistencia de los resultados.
 
 ## Consulta utilizada
 
@@ -86,7 +103,7 @@ Después de aplicar las operaciones CDC, el estado actual del padrón fue:
 | Inactivos | 2,336 |
 | **Total** | **17,432** |
 
-Los eventos `DELETE` no eliminan físicamente al usuario, sino que lo marcan como inactivo para conservar su historial.
+El padrón reconstruido contiene **17,432 tarjetas distintas**. Después de aplicar las operaciones CDC en orden de secuencia, **15,096 quedaron activas** y **2,336 quedaron inactivas**. Los **4,050 eventos DELETE** representan operaciones procesadas y no necesariamente tarjetas finales únicas, porque una misma tarjeta puede aparecer en más de un evento.
 
 ## Catálogos mínimos de usuarios
 
@@ -95,6 +112,21 @@ Los eventos `DELETE` no eliminan físicamente al usuario, sino que lo marcan com
 | Aerometro | 14,496 |
 | MetroRiel | 22,885 |
 | Transurbano | 36,567 |
+
+## Tamaño de almacenamiento por capa
+
+Los tamaños fueron medidos directamente en el sistema de archivos y en PostgreSQL.
+
+| Capa | Tamaño medido |
+|---|---:|
+| Bronze | 67 MB |
+| Staging | 72 kB |
+| Silver | 273 MB |
+| Gold | 381 MB |
+| Quarantine | 3,400 kB |
+| Audit | 32 kB |
+
+Staging presenta un tamaño reducido porque se vacía al finalizar cada ejecución. Bronze conserva los archivos originales acumulados, mientras que Silver y Gold almacenan las tablas transformadas y listas para consumo.
 
 ## Resultados de las reglas de calidad
 
