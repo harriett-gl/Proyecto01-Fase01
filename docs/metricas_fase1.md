@@ -121,7 +121,7 @@ Los tamaños fueron medidos directamente en el sistema de archivos y en PostgreS
 |---|---:|
 | Bronze | 67 MB |
 | Staging | 72 kB |
-| Silver | 273 MB |
+| Silver | 276 MB |
 | Gold | 381 MB |
 | Quarantine | 3,400 kB |
 | Audit | 32 kB |

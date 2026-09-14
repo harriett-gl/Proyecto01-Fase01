@@ -1,7 +1,4 @@
--- =====================================================
 -- 1. CONTEOS EXACTOS POR TABLA Y CAPA
--- =====================================================
-
 CREATE OR REPLACE FUNCTION pg_temp.conteos_fase1()
 RETURNS TABLE (
     esquema TEXT,
@@ -40,11 +37,7 @@ SELECT *
 FROM pg_temp.conteos_fase1()
 ORDER BY esquema, tabla;
 
-
--- =====================================================
 -- 2. OPERACIONES CDC
--- =====================================================
-
 SELECT column_name
 FROM information_schema.columns
 WHERE table_schema = 'staging'
@@ -58,10 +51,7 @@ FROM staging.cdc_padron_usuarios
 GROUP BY op
 ORDER BY op;
 
--- =====================================================
 -- 3. ESTADO ACTUAL DEL PADRÓN
--- =====================================================
-
 SELECT
     activo,
     count(*) AS cantidad
@@ -69,11 +59,7 @@ FROM silver.dim_usuario_actual
 GROUP BY activo
 ORDER BY activo DESC;
 
-
--- =====================================================
 -- 4. CATÁLOGOS MÍNIMOS DE USUARIOS
--- =====================================================
-
 SELECT
     'Aerometro' AS operador,
     count(*) AS usuarios_distintos
@@ -95,11 +81,7 @@ FROM silver.cat_usuario_transurbano
 
 ORDER BY operador;
 
-
--- =====================================================
 -- 5. RECHAZOS POR REGLA DE CALIDAD
--- =====================================================
-
 CREATE OR REPLACE FUNCTION pg_temp.metricas_calidad()
 RETURNS TABLE (
     tabla TEXT,
@@ -135,11 +117,7 @@ SELECT *
 FROM pg_temp.metricas_calidad()
 ORDER BY tabla, motivo;
 
-
--- =====================================================
 -- 6. ÚLTIMAS DOS EJECUCIONES
--- =====================================================
-
 SELECT
     fecha_inicio,
     estado,
