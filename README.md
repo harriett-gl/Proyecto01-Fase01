@@ -34,17 +34,26 @@ El flujo general del proyecto es:
 ## Estructura principal
 
 ```text
-Proyecto01-Fase01/
+Proyecto 01 - Fase 01/
+├── datos_red/
+│   └── fuentes originales del proyecto
+│
 ├── lake/
 │   └── bronze/
+│       ├── batch/
+│       ├── cdc/
+│       └── streaming/
+│
 ├── scripts/
 │   ├── ingesta_batch.py
 │   ├── ingesta_cdc.py
 │   ├── stream_producer.py
 │   ├── stream_consumer.py
 │   └── cargar_staging.py
+│
 ├── orchestration/
 │   └── flow_red_metropolitana.py
+│
 ├── dbt_red_metropolitana/
 │   ├── models/
 │   │   ├── staging/
@@ -53,15 +62,45 @@ Proyecto01-Fase01/
 │   │   └── gold/
 │   ├── dbt_project.yml
 │   └── profiles.yml
+│
 ├── docs/
-│   ├── matriz_bus.md
-│   ├── diagrama_modelo.md
+│   ├── evidencias/
+│   │   ├── Proyecto 01 - Fase 01.pdf
+│   │   └── Proyecto 01 - Fase 01.pptx
 │   ├── ddl_gold.sql
+│   ├── diagrama_modelo.md
+│   ├── matriz_bus.md
+│   ├── medicion_capas.sql
+│   ├── metricas.sql
 │   └── metricas_fase1.md
+│
+├── logs/
+│   └── registros generados durante la ejecución
+│
+├── generar_red_metropolitana.py
 ├── docker-compose.yml
 ├── .env.example
-└── requirements.txt
+├── .gitignore
+├── requirements.txt
+└── README.md
 ```
+
+## Descripción de carpetas y archivos
+
+- **datos_red/**: contiene las fuentes de datos originales utilizadas para desarrollar el proyecto.
+- **lake/bronze/**: almacena los datos originales en formato Parquet, organizados según su método de ingesta.
+- **scripts/**: contiene los programas responsables de las ingestas batch, CDC y streaming, además de la carga hacia Staging.
+- **orchestration/**: contiene el flujo de Prefect que coordina las etapas del pipeline.
+- **dbt_red_metropolitana/**: contiene los modelos SQL y la configuración de dbt para construir las capas Staging, Silver, Quarantine y Gold.
+- **docs/**: reúne la documentación técnica, las métricas, el modelo dimensional, las consultas SQL y las evidencias del proyecto.
+- **docs/evidencias/**: contiene el informe en PDF y la presentación de la Fase 01.
+- **logs/**: almacena los registros generados durante las ejecuciones del pipeline.
+- **generar_red_metropolitana.py**: genera o prepara los archivos de datos utilizados por el proyecto.
+- **docker-compose.yml**: configura los servicios de infraestructura, como PostgreSQL y Kafka.
+- **.env.example**: presenta las variables de entorno necesarias sin incluir credenciales reales.
+- **.gitignore**: define los archivos locales que no deben subirse al repositorio.
+- **requirements.txt**: contiene las dependencias de Python.
+- **README.md**: explica la instalación, ejecución, arquitectura y decisiones técnicas del proyecto.
 
 ## Fuentes de información
 
