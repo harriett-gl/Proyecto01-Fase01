@@ -1,14 +1,29 @@
+# ENTORNOS VIRTUALES
 .venv/
+.venv_python314_backup/
+venv/
+
+# CONFIGURACIÓN DEL IDE
 .idea/
-__pycache__/
-*.pyc
+
+# VARIABLES DE ENTORNO Y CREDENCIALES
 .env
 
+# ARCHIVOS TEMPORALES DE PYTHON
+__pycache__/
+*.pyc
+*.pyo
+
+# DATOS Y ARCHIVOS GENERADOS
 datos_red/
 lake/
 logs/
+
+# ARCHIVOS GENERADOS POR DBT
 target/
 dbt_packages/
-
+dbt_red_metropolitana/logs/
 dbt_red_metropolitana/.user.yml
-.venv_python314_backup/
+
+# ARCHIVOS DE MACOS
+.DS_Store
