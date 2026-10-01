@@ -1,0 +1,22 @@
+version: 2
+
+models:
+  - name: features_usuario_movilidad
+    description: "Características de movilidad consolidadas por usuario."
+
+    columns:
+      - name: usuario_sk
+        description: "Identificador único del usuario."
+        tests:
+          - not_null
+          - unique
+
+      - name: cantidad_modos
+        description: "Cantidad de modos de transporte identificados para el usuario."
+        tests:
+          - not_null
+
+      - name: es_multimodal
+        description: "Indica si el usuario utiliza dos o más modos de transporte."
+        tests:
+          - not_null
