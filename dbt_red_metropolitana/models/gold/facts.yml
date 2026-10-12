@@ -1,0 +1,60 @@
+version: 2
+
+models:
+  - name: fct_abordajes
+    description: Un abordaje válido de Transmetro, Transurbano o Aerómetro por fila.
+
+    columns:
+      - name: abordaje_sk
+        data_tests:
+          - not_null
+          - unique
+
+      - name: modo_sk
+        data_tests:
+          - not_null
+
+      - name: usuario_sk
+        data_tests:
+          - not_null
+
+      - name: fecha_sk
+        data_tests:
+          - not_null
+
+      - name: hora_sk
+        data_tests:
+          - not_null
+
+      - name: cantidad_abordajes
+        data_tests:
+          - not_null
+
+  - name: fct_viajes_metroriel
+    description: Un viaje completo y válido de MetroRiel por fila.
+
+    columns:
+      - name: viaje_sk
+        data_tests:
+          - not_null
+          - unique
+
+      - name: modo_sk
+        data_tests:
+          - not_null
+
+      - name: usuario_sk
+        data_tests:
+          - not_null
+
+      - name: fecha_sk
+        data_tests:
+          - not_null
+
+      - name: duracion_segundos
+        data_tests:
+          - not_null
+
+      - name: cantidad_viajes
+        data_tests:
+          - not_null

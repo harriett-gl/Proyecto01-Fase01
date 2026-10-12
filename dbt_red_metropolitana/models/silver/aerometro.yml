@@ -1,0 +1,35 @@
+version: 2
+
+models:
+  - name: aerometro_boardings
+    description: Abordajes válidos de Aerómetro convertidos de UTC a hora de Guatemala.
+
+    columns:
+      - name: boarding_id
+        data_tests:
+          - not_null
+          - unique
+
+      - name: usuario_origen_id
+        data_tests:
+          - not_null
+
+      - name: estacion_codigo
+        data_tests:
+          - not_null
+
+      - name: estacion_nombre
+        data_tests:
+          - not_null
+
+      - name: fecha_hora_utc
+        data_tests:
+          - not_null
+
+      - name: fecha_hora_local
+        data_tests:
+          - not_null
+
+      - name: monto_gtq
+        data_tests:
+          - not_null
