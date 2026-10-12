@@ -2,59 +2,173 @@ version: 2
 
 models:
   - name: fct_abordajes
-    description: Un abordaje válido de Transmetro, Transurbano o Aerómetro por fila.
-
+    description: >
+      Grano: un abordaje válido (acceso exitoso) de Transmetro, Transurbano o
+      Aerómetro por fila. Se construye solo desde Silver.
+    meta:
+      dueno: "Gerencia de Operaciones"
     columns:
       - name: abordaje_sk
-        data_tests:
-          - not_null
-          - unique
-
+        description: "Llave sustituta del abordaje: md5(modo || '|' || evento_origen_id)."
+        meta: {fuente: "Silver de cada operador", transformacion: "md5 de modo + id de origen"}
+        data_tests: [not_null, unique]
+      - name: evento_origen_id
+        description: "Id del evento en el sistema del operador: validacion_id, boarding_id o md5 de la fila de Transurbano."
+        meta: {fuente: "transmetro_validaciones.csv / aerometro_boardings.csv / transurbano_transacciones.csv", transformacion: "Cast a texto; Transurbano no trae id y se genera con md5 de sus columnas"}
+        data_tests: [not_null]
       - name: modo_sk
+        description: "Llave del modo de transporte."
+        meta: {fuente: "gold.dim_modo", transformacion: "Join por nombre del modo"}
         data_tests:
           - not_null
-
+          - relationships: {to: ref('dim_modo'), field: modo_sk}
+      - name: modo_nombre
+        description: "Nombre del modo (desnormalizado para facilitar el tablero)."
+        meta: {fuente: "Constante por rama del UNION", transformacion: "Ninguna"}
+        data_tests:
+          - accepted_values: {values: ['TRANSMETRO', 'TRANSURBANO', 'AEROMETRO']}
       - name: usuario_sk
+        description: "Seudónimo del usuario que abordó."
+        meta: {fuente: "silver.dim_usuario_conformado", transformacion: "Join por modo + llave original; la llave original no se copia"}
         data_tests:
           - not_null
-
+          - relationships: {to: ref('dim_usuario'), field: usuario_sk}
+      - name: zona_sk
+        description: "Llave de la zona donde ocurrió el abordaje."
+        meta: {fuente: "gold.dim_zona", transformacion: "Join por nombre de zona normalizado"}
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_zona'), field: zona_sk}
+      - name: zona_nombre
+        description: "Zona normalizada del abordaje (desnormalizada para el tablero)."
+        meta: {fuente: "tm_estaciones.zona / tu_paradas.sector / am_estaciones.district", transformacion: "Lookup de la estación o parada + normalización de zona"}
+        data_tests: [not_null]
       - name: fecha_sk
+        description: "Fecha local del abordaje en formato YYYYMMDD."
+        meta: {fuente: "fecha_hora (TM), fecha+hora (TU), timestamp_utc (AM)", transformacion: "Unificación a hora local de Guatemala; Aerómetro UTC-6"}
         data_tests:
           - not_null
-
+          - relationships: {to: ref('dim_fecha'), field: fecha_sk}
       - name: hora_sk
+        description: "Hora local del abordaje (0-23)."
+        meta: {fuente: "Igual que fecha_sk", transformacion: "extract(hour) sobre la hora local"}
         data_tests:
           - not_null
-
+          - relationships: {to: ref('dim_hora'), field: hora_sk}
+      - name: ubicacion_codigo
+        description: "Dimensión degenerada: código de estación (TM, AM) o de parada (TU) del operador."
+        meta: {fuente: "estacion_id / cod_parada / station_code", transformacion: "trim"}
+      - name: servicio
+        description: "Dimensión degenerada: línea (TM), ruta (TU) o eje (AM)."
+        meta: {fuente: "linea / ruta / axis", transformacion: "trim"}
+      - name: fecha_hora_local
+        description: "Fecha y hora local del abordaje."
+        meta: {fuente: "Igual que fecha_sk", transformacion: "Unificación a un solo estándar de timestamp local"}
+        data_tests: [not_null]
+      - name: monto_gtq
+        description: "Tarifa cobrada en quetzales. Medida aditiva."
+        meta: {fuente: "tarifa (Q), monto_centavos (TU), fare (Q)", transformacion: "Transurbano: centavos / 100"}
+        data_tests: [not_null]
+      - name: operacion_exitosa
+        description: "Siempre verdadero en esta tabla: las transacciones rechazadas de Transurbano (estado 7 y 9) no son abordajes."
+        meta: {fuente: "cod_estado (TU)", transformacion: "cod_estado en (1,2,3)"}
       - name: cantidad_abordajes
-        data_tests:
-          - not_null
+        description: "Siempre 1. Medida aditiva para sumar abordajes por cualquier dimensión."
+        meta: {fuente: "Constante", transformacion: "1 por fila"}
+        data_tests: [not_null]
 
   - name: fct_viajes_metroriel
-    description: Un viaje completo y válido de MetroRiel por fila.
-
+    description: >
+      Grano: un viaje completo y válido de MetroRiel (con entrada y salida) por fila.
+      Se separa de fct_abordajes porque solo MetroRiel registra origen, destino y duración.
+    meta:
+      dueno: "Gerencia de Operaciones"
     columns:
       - name: viaje_sk
-        data_tests:
-          - not_null
-          - unique
-
+        description: "Llave sustituta del viaje: md5('METRORIEL|' || viaje_id)."
+        meta: {fuente: "metroriel_viajes.jsonl -> trip_id", transformacion: "md5"}
+        data_tests: [not_null, unique]
+      - name: viaje_id
+        description: "trip_id original de MetroRiel."
+        meta: {fuente: "metroriel_viajes.jsonl -> trip_id", transformacion: "Extraído del JSON y convertido a bigint"}
+        data_tests: [not_null, unique]
       - name: modo_sk
+        description: "Llave del modo (siempre METRORIEL)."
+        meta: {fuente: "gold.dim_modo", transformacion: "Join fijo a METRORIEL"}
         data_tests:
           - not_null
-
+          - relationships: {to: ref('dim_modo'), field: modo_sk}
+      - name: modo_nombre
+        description: "Siempre 'METRORIEL'."
+        meta: {fuente: "Constante", transformacion: "Ninguna"}
       - name: usuario_sk
+        description: "Seudónimo del usuario."
+        meta: {fuente: "metroriel_viajes.jsonl -> card", transformacion: "Join a silver.dim_usuario_conformado; la tarjeta no se copia"}
         data_tests:
           - not_null
-
+          - relationships: {to: ref('dim_usuario'), field: usuario_sk}
+      - name: zona_entrada_sk
+        description: "Llave de la zona de la estación de entrada."
+        meta: {fuente: "mr_estaciones.zona_nombre", transformacion: "Lookup por id de estación"}
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_zona'), field: zona_sk}
+      - name: zona_salida_sk
+        description: "Llave de la zona de la estación de salida."
+        meta: {fuente: "mr_estaciones.zona_nombre", transformacion: "Lookup por id de estación"}
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_zona'), field: zona_sk}
+      - name: zona_entrada
+        description: "Nombre de la zona de entrada."
+        meta: {fuente: "mr_estaciones.zona_nombre", transformacion: "Lookup por entry.station"}
+      - name: zona_salida
+        description: "Nombre de la zona de salida."
+        meta: {fuente: "mr_estaciones.zona_nombre", transformacion: "Lookup por exit.station"}
       - name: fecha_sk
+        description: "Fecha local de entrada (YYYYMMDD)."
+        meta: {fuente: "metroriel_viajes.jsonl -> entry.ts (ISO 8601)", transformacion: "Cast a timestamp y a fecha"}
         data_tests:
           - not_null
-
+          - relationships: {to: ref('dim_fecha'), field: fecha_sk}
+      - name: hora_entrada_sk
+        description: "Hora local de entrada (0-23)."
+        meta: {fuente: "entry.ts", transformacion: "extract(hour)"}
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_hora'), field: hora_sk}
+      - name: hora_salida_sk
+        description: "Hora local de salida (0-23)."
+        meta: {fuente: "exit.ts", transformacion: "extract(hour)"}
+        data_tests:
+          - not_null
+          - relationships: {to: ref('dim_hora'), field: hora_sk}
+      - name: estacion_entrada_id
+        description: "Id de la estación de entrada (1-22)."
+        meta: {fuente: "entry.station", transformacion: "Extraído del JSON anidado"}
+      - name: estacion_entrada
+        description: "Nombre de la estación de entrada."
+        meta: {fuente: "mr_estaciones.nombre_estacion", transformacion: "Lookup"}
+      - name: estacion_salida_id
+        description: "Id de la estación de salida (1-22)."
+        meta: {fuente: "exit.station", transformacion: "Extraído del JSON anidado"}
+      - name: estacion_salida
+        description: "Nombre de la estación de salida."
+        meta: {fuente: "mr_estaciones.nombre_estacion", transformacion: "Lookup"}
+      - name: fecha_hora_entrada
+        description: "Fecha y hora local de entrada."
+        meta: {fuente: "entry.ts", transformacion: "Cast ISO 8601 -> timestamp"}
+      - name: fecha_hora_salida
+        description: "Fecha y hora local de salida."
+        meta: {fuente: "exit.ts", transformacion: "Cast ISO 8601 -> timestamp"}
       - name: duracion_segundos
-        data_tests:
-          - not_null
-
+        description: "Duración del viaje en segundos. Aditiva para sumar tiempo total; el promedio se recalcula."
+        meta: {fuente: "duration_s", transformacion: "Cast a entero; viajes sin salida van a cuarentena"}
+        data_tests: [not_null]
+      - name: monto_gtq
+        description: "Tarifa en quetzales. Medida aditiva."
+        meta: {fuente: "fare_gtq", transformacion: "Cast a numeric(10,2)"}
       - name: cantidad_viajes
-        data_tests:
-          - not_null
+        description: "Siempre 1. Medida aditiva."
+        meta: {fuente: "Constante", transformacion: "1 por fila"}
+        data_tests: [not_null]

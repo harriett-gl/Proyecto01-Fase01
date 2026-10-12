@@ -27,3 +27,6 @@ dbt_red_metropolitana/.user.yml
 
 # ARCHIVOS DE MACOS
 .DS_Store
+# REGISTROS DE CORRIDAS Y ARCHIVOS TEMPORALES DE TABLEAU
+*.log
+~*.twbr

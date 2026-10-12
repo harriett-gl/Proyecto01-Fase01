@@ -1,29 +1,75 @@
 version: 2
 
+# Linaje hasta el dato crudo: cada tabla de Staging indica el archivo original
+# (datos_red/) y la carpeta Bronze (lake/bronze/) de donde se carga.
+# Cadena completa: archivo crudo -> Bronze (Parquet) -> staging -> Silver -> Gold -> tablero.
+
 sources:
   - name: staging
+    description: "Copia temporal de Bronze en PostgreSQL. Se vacía al final de cada corrida."
     database: red_metropolitana
     schema: staging
 
     tables:
       - name: cdc_padron_usuarios
+        description: "Log CDC del padrón (INSERT, UPDATE, DELETE). Vía: CDC."
+        meta:
+          archivo_crudo: "datos_red/cdc_padron_usuarios.csv"
+          ruta_bronze: "lake/bronze/cdc/padron_usuarios/ingestion_date=*/"
+          via_ingesta: "CDC (scripts/ingesta_cdc.py)"
         columns:
           - name: seq
-            data_tests:
-              - not_null
-              - unique
+            data_tests: [not_null, unique]
           - name: op
-            data_tests:
-              - not_null
+            data_tests: [not_null]
           - name: tarjeta
-            data_tests:
-              - not_null
+            data_tests: [not_null]
 
       - name: transmetro_validaciones
+        description: "Validaciones de Transmetro, un abordaje por fila. Vía: streaming Kafka."
+        meta:
+          archivo_crudo: "datos_red/transmetro_validaciones.csv"
+          ruta_bronze: "lake/bronze/streaming/transmetro/ingestion_date=*/"
+          via_ingesta: "Streaming (stream_producer.py / stream_consumer.py)"
       - name: transurbano_transacciones
+        description: "Transacciones de Transurbano. Vía: batch (decisión del grupo)."
+        meta:
+          archivo_crudo: "datos_red/transurbano_transacciones.csv"
+          ruta_bronze: "lake/bronze/batch/transurbano_transacciones/ingestion_date=*/"
+          via_ingesta: "Batch (scripts/ingesta_batch.py)"
       - name: metroriel_viajes_raw
+        description: "Viajes completos de MetroRiel; el JSON anidado se guarda crudo en raw_payload. Vía: batch."
+        meta:
+          archivo_crudo: "datos_red/metroriel_viajes.jsonl"
+          ruta_bronze: "lake/bronze/batch/metroriel_viajes/ingestion_date=*/"
+          via_ingesta: "Batch (scripts/ingesta_batch.py)"
       - name: aerometro_boardings
+        description: "Abordajes de Aerómetro con timestamp en UTC. Vía: streaming Kafka."
+        meta:
+          archivo_crudo: "datos_red/aerometro_boardings.csv"
+          ruta_bronze: "lake/bronze/streaming/aerometro/ingestion_date=*/"
+          via_ingesta: "Streaming (stream_producer.py / stream_consumer.py)"
       - name: tm_estaciones
+        description: "Catálogo de estaciones de Transmetro. Vía: batch."
+        meta:
+          archivo_crudo: "datos_red/tm_estaciones.csv"
+          ruta_bronze: "lake/bronze/batch/tm_estaciones/ingestion_date=*/"
+          via_ingesta: "Batch"
       - name: tu_paradas
+        description: "Catálogo de paradas de Transurbano (sector en formato Z10). Vía: batch."
+        meta:
+          archivo_crudo: "datos_red/tu_paradas.csv"
+          ruta_bronze: "lake/bronze/batch/tu_paradas/ingestion_date=*/"
+          via_ingesta: "Batch"
       - name: mr_estaciones
+        description: "Catálogo de las 22 estaciones de MetroRiel. Vía: batch."
+        meta:
+          archivo_crudo: "datos_red/mr_estaciones.csv"
+          ruta_bronze: "lake/bronze/batch/mr_estaciones/ingestion_date=*/"
+          via_ingesta: "Batch"
       - name: am_estaciones
+        description: "Catálogo de estaciones de Aerómetro (district). Vía: batch."
+        meta:
+          archivo_crudo: "datos_red/am_estaciones.csv"
+          ruta_bronze: "lake/bronze/batch/am_estaciones/ingestion_date=*/"
+          via_ingesta: "Batch"
