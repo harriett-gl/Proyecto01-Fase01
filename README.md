@@ -196,7 +196,7 @@ Implementa el modelo dimensional utilizado para análisis y visualización.
 
 ## Features
 
-La Fase 02 incorpora una capa analítica de features destinada a generar variables derivadas del comportamiento de movilidad de los usuarios.
+La Fase 02 incorpora una capa analítica de features destinada a generar variables derivadas del comportamiento de movilidad de los usuarios. **Se construye desde Silver, no desde Gold**: Gold ya agregó a un grano de negocio y el feature engineering necesita el detalle atómico de cada evento.
 
 Modelo principal:
 
@@ -272,13 +272,32 @@ dbt debug \
   --profiles-dir dbt_red_metropolitana
 ```
 
-## 7. Ejecutar el pipeline completo
+## 7. Generar los datos de origen (solo la primera vez)
+
+```bash
+python generar_red_metropolitana.py
+```
+
+Crea los nueve archivos de `datos_red/` (unos 135 MB).
+
+## 8. Ejecutar el pipeline completo
 
 ```bash
 python orchestration/flow_red_metropolitana.py
 ```
 
-El flujo ejecuta las ingestas, carga Staging, construye los modelos dbt, ejecuta las pruebas, registra las métricas y limpia las tablas temporales.
+El flujo ejecuta las ingestas, carga Staging, construye los modelos dbt, ejecuta las pruebas, registra las métricas (también las corridas fallidas) y limpia las tablas temporales.
+
+## 9. Generar la documentación de gobernanza
+
+```bash
+cd dbt_red_metropolitana && dbt docs generate --profiles-dir . && cd ..
+python scripts/generar_linaje.py          # docs/linaje/linaje_dbt.png
+python scripts/generar_diccionario.py     # docs/diccionario_datos.md
+python scripts/medir_consultas_tablero.py # tiempos del tablero y cifras clave
+```
+
+Para ver el linaje interactivo: `dbt docs serve --profiles-dir dbt_red_metropolitana --project-dir dbt_red_metropolitana`.
 
 ---
 
@@ -296,15 +315,18 @@ dbt build \
 
 # Pruebas de calidad
 
-El proyecto utiliza pruebas dbt para validar:
+El proyecto utiliza **149 pruebas dbt** (resultado: `PASS=180 WARN=0 ERROR=0`, contando modelos) para validar:
 
-- Campos obligatorios.
-- Llaves únicas.
-- Integridad referencial.
-- Relaciones entre hechos y dimensiones.
-- Catálogos mínimos de usuarios.
-- Consistencia del modelo dimensional.
-- Integridad de las features de movilidad.
+- Campos obligatorios y llaves únicas.
+- Integridad referencial: cada llave de las tablas de hechos existe en su dimensión (`relationships`).
+- Valores permitidos de modo y franja horaria.
+- Reglas de arquitectura (`tests/`):
+  - `gold_no_lee_bronze_ni_staging`: ningún modelo Gold depende de Staging/Bronze.
+  - `features_no_lee_gold`: la tabla de features sale de Silver, no de Gold.
+  - `cuarentena_cuadra_con_staging`: filas en staging = Silver + cuarentena (nada se descarta en silencio).
+  - `conciliacion_silver_gold`: el mismo conteo por modo desde Silver y desde Gold.
+  - `features_consistencia` y `features_sin_fuga_de_informacion`.
+  - `cobertura_sin_servicio_detectada`: toda zona del padrón aparece en el análisis de cobertura.
 
 ---
 
@@ -332,8 +354,9 @@ La evidencia completa está disponible en:
 - Las credenciales se administran mediante variables de entorno.
 - `.env` está excluido del repositorio.
 - `.env.example` únicamente contiene valores de referencia.
-- Los identificadores originales de los usuarios no se exponen en las tablas Gold.
+- Los identificadores originales de los usuarios no se exponen en las tablas Gold: `usuario_sk = md5(USUARIO_SALT || llave)`, con una sal secreta en `.env`.
 - Las dimensiones utilizan llaves sustitutas.
+- Roles de acceso y retención: [`docs/seguridad.md`](docs/seguridad.md).
 
 ---
 
@@ -351,12 +374,16 @@ dbt_red_metropolitana/models/features/
 └── features_usuario_movilidad.sql
 ```
 
-El modelo `features_usuario_movilidad` permite generar características analíticas por usuario, incluyendo:
+El modelo `features_usuario_movilidad` se calcula **desde Silver** (detalle atómico por evento, no desde Gold) con **fecha de corte 2026-07-15** y genera una fila por usuario (70,380 usuarios) con:
 
-- Cantidad de modos identificados.
-- Identificación de usuarios multimodales.
-- Actividad dentro de la red.
-- Variables derivadas del comportamiento de movilidad.
+- Viajes en los últimos 7, 30 y 90 días, total y días activos.
+- Días desde el último viaje (recencia) y desde el primero.
+- Modo más usado, cantidad de modos, multimodalidad y viajes por modo.
+- Proporción de viajes en hora pico y en fin de semana.
+- Zona de origen más frecuente y zonas distintas.
+- Gasto acumulado, gasto promedio por viaje y transacciones rechazadas.
+
+Diccionario, fecha de corte y uso propuesto (predecir abandono a 30 días): [`docs/features.md`](docs/features.md).
 
 Se considera **usuario multimodal** a aquel identificado en **dos o más modos de transporte**.
 
@@ -400,22 +427,47 @@ Estos resultados permiten comparar la demanda existente en las zonas objetivo y 
 
 El modelo de features fue sometido a pruebas de calidad para verificar:
 
-- Valores no nulos.
-- Unicidad de `usuario_sk`.
-- Integridad de la cantidad de modos.
-- Clasificación de usuarios multimodales.
+- Valores no nulos y unicidad de `usuario_sk`.
+- Coherencia de ventanas (7d ≤ 30d ≤ 90d ≤ total) y proporciones entre 0 y 1.
+- Que ningún evento posterior a la fecha de corte entre al cálculo.
+- Que el modelo no dependa de Gold.
 
-Resultado final:
+Resultado del `dbt build` completo (modelos + pruebas):
 
 ```text
-PASS=4
+PASS=180
 WARN=0
 ERROR=0
 SKIP=0
-TOTAL=4
+NO-OP=2   (exposures: tablero y features)
+TOTAL=182
 ```
 
 **Todas las pruebas finalizaron correctamente.**
+
+---
+
+## Cobertura y caso MetroRiel
+
+La vista `gold.rpt_cobertura_zona` une las zonas con actividad y las zonas de residencia del padrón:
+
+- **15 zonas con servicio y 1 sin servicio: Santa Catarina Pinula** (946 residentes activos, 0 abordajes).
+- Medida sin la demanda que genera el propio MetroRiel, las zonas del trazado quedan en los puestos **3, 5, 9, 11 y 15** de 15; **Mixco y Zona 7**, las de mayor demanda, quedan fuera.
+
+Recomendación completa (máximo dos páginas): [`docs/recomendacion.md`](docs/recomendacion.md).
+
+---
+
+# Gobernanza, documentación y seguridad
+
+| Entregable | Archivo |
+|---|---|
+| Diccionario de datos de Gold (significado, fuente, transformación) | [`docs/diccionario_datos.md`](docs/diccionario_datos.md) |
+| Definiciones oficiales, dueño por dominio y reglas de calidad | [`docs/gobernanza.md`](docs/gobernanza.md) |
+| Grafo de linaje dbt (archivo crudo → tablero) | [`docs/linaje/linaje_dbt.png`](docs/linaje/linaje_dbt.png) |
+| Seguridad y datos personales | [`docs/seguridad.md`](docs/seguridad.md) |
+| Qué responde cada hoja del tablero | [`docs/tablero.md`](docs/tablero.md) |
+| Métricas de la Fase 02 | [`docs/metricas_fase2.md`](docs/metricas_fase2.md) |
 
 ---
 
@@ -445,9 +497,31 @@ dbt_red_metropolitana/models/features/
 ├── features.yml
 └── features_usuario_movilidad.sql
 
+dbt_red_metropolitana/models/gold/
+├── rpt_cobertura_zona.sql
+├── rpt_demanda_red.sql
+└── reportes.yml
+
+dbt_red_metropolitana/models/exposures.yml
+dbt_red_metropolitana/macros/definiciones_oficiales.sql
+dbt_red_metropolitana/tests/            (7 pruebas de reglas)
+
+scripts/
+├── generar_linaje.py
+├── generar_diccionario.py
+└── medir_consultas_tablero.py
+
 docs/
 ├── Fase 02.sql
 ├── validaciones.sql
+├── recomendacion.md
+├── features.md
+├── gobernanza.md
+├── seguridad.md
+├── diccionario_datos.md
+├── tablero.md
+├── metricas_fase2.md
+├── linaje/
 └── evidencias/
     ├── Proyecto 01 - Fase 02.pdf
     ├── Proyecto 01 - Fase 02.pptx

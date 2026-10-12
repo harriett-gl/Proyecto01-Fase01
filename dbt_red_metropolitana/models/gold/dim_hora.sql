@@ -12,7 +12,7 @@ select
         else 'Noche'
     end as franja_horaria,
 
-    hora in (6, 7, 8, 16, 17, 18)
+    {{ es_hora_pico('hora') }}
         as es_hora_pico
 
 from generate_series(0, 23) as horas(hora)

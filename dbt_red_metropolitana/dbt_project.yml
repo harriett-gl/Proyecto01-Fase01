@@ -32,3 +32,8 @@ models:
     gold:
       +materialized: table
       +schema: gold
+
+# Fecha de corte declarada para la tabla de features (sección 2.3).
+# Último día con datos generados (2026-06-01 + 45 días).
+vars:
+  fecha_corte: "2026-07-15"

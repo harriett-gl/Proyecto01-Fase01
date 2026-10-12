@@ -1,7 +1,10 @@
-pandas
-pyarrow
-kafka-python
-psycopg2-binary
-python-dotenv
-prefect
-dbt-postgres
+# Versiones con las que se verificó el flujo completo (dos corridas idénticas).
+pandas==3.0.6
+pyarrow==26.0.0
+kafka-python==3.0.11
+psycopg2-binary==2.9.13
+python-dotenv==1.2.4
+prefect==3.8.8
+dbt-core==1.12.5
+dbt-postgres==1.11.0
+PyYAML

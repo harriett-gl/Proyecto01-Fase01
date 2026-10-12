@@ -1,49 +1,134 @@
 version: 2
 
+# Diccionario de datos de Gold (sección 3.1).
+# Cada campo declara: qué significa (description), de qué fuente sale
+# (meta.fuente) y qué transformación se le aplicó (meta.transformacion).
+# docs/diccionario_datos.md se genera desde estos archivos con
+#   python scripts/generar_diccionario.py
+
 models:
   - name: dim_modo
+    description: "Catálogo de los cuatro modos de transporte de la red."
+    meta:
+      dueno: "Gerencia de Operaciones"
     columns:
       - name: modo_sk
-        data_tests:
-          - not_null
-          - unique
+        description: "Llave sustituta del modo de transporte."
+        meta: {fuente: "Definida en el modelo", transformacion: "Valor fijo 1-4"}
+        data_tests: [not_null, unique]
       - name: modo_nombre
+        description: "Nombre oficial del modo: TRANSMETRO, TRANSURBANO, METRORIEL o AEROMETRO."
+        meta: {fuente: "Definida en el modelo", transformacion: "Catálogo fijo en mayúsculas"}
         data_tests:
           - not_null
           - unique
+          - accepted_values:
+              values: ['TRANSMETRO', 'TRANSURBANO', 'METRORIEL', 'AEROMETRO']
 
   - name: dim_hora
+    description: "Hora del día (0-23) con franja horaria y bandera de hora pico."
+    meta:
+      dueno: "Equipo de Datos de la Agencia"
     columns:
       - name: hora_sk
+        description: "Llave de la hora del día (igual a la hora, 0-23)."
+        meta: {fuente: "generate_series(0, 23)", transformacion: "Ninguna"}
+        data_tests: [not_null, unique]
+      - name: hora
+        description: "Hora local del día, de 0 a 23."
+        meta: {fuente: "generate_series(0, 23)", transformacion: "Ninguna"}
+        data_tests: [not_null]
+      - name: franja_horaria
+        description: "Madrugada (0-5), Mañana (6-11), Tarde (12-17) o Noche (18-23)."
+        meta: {fuente: "Regla de negocio", transformacion: "CASE sobre la hora"}
         data_tests:
           - not_null
-          - unique
+          - accepted_values:
+              values: ['Madrugada', 'Mañana', 'Tarde', 'Noche']
+      - name: es_hora_pico
+        description: "Verdadero entre 06:00-08:59 y 16:00-18:59 (definición oficial, macro es_hora_pico)."
+        meta: {fuente: "Regla de negocio", transformacion: "Macro es_hora_pico, compartida con features"}
+        data_tests: [not_null]
 
   - name: dim_fecha
+    description: "Calendario continuo entre la primera y la última fecha con viajes."
+    meta:
+      dueno: "Equipo de Datos de la Agencia"
     columns:
       - name: fecha_sk
-        data_tests:
-          - not_null
-          - unique
+        description: "Llave de la fecha en formato YYYYMMDD."
+        meta: {fuente: "Fechas de viaje de las 4 tablas Silver", transformacion: "to_char(fecha, 'YYYYMMDD')::int"}
+        data_tests: [not_null, unique]
       - name: fecha
-        data_tests:
-          - not_null
-          - unique
+        description: "Fecha calendario en hora local de Guatemala."
+        meta: {fuente: "Silver: fecha_viaje de los 4 operadores", transformacion: "generate_series entre mínimo y máximo"}
+        data_tests: [not_null, unique]
+      - name: dia
+        description: "Día del mes (1-31)."
+        meta: {fuente: "dim_fecha.fecha", transformacion: "extract(day)"}
+      - name: mes
+        description: "Mes del año (1-12)."
+        meta: {fuente: "dim_fecha.fecha", transformacion: "extract(month)"}
+      - name: anio
+        description: "Año calendario."
+        meta: {fuente: "dim_fecha.fecha", transformacion: "extract(year)"}
+      - name: trimestre
+        description: "Trimestre del año (1-4)."
+        meta: {fuente: "dim_fecha.fecha", transformacion: "extract(quarter)"}
+      - name: dia_semana
+        description: "Día de la semana ISO: 1 = lunes ... 7 = domingo."
+        meta: {fuente: "dim_fecha.fecha", transformacion: "extract(isodow)"}
+      - name: es_dia_habil
+        description: "Verdadero de lunes a viernes (no considera feriados)."
+        meta: {fuente: "dim_fecha.fecha", transformacion: "isodow entre 1 y 5"}
+        data_tests: [not_null]
+      - name: es_fin_semana
+        description: "Verdadero sábado y domingo."
+        meta: {fuente: "dim_fecha.fecha", transformacion: "isodow en (6, 7)"}
+        data_tests: [not_null]
 
   - name: dim_usuario
+    description: >
+      Usuario seudonimizado y conformado entre operadores. No contiene ninguna
+      tarjeta original.
+    meta:
+      dueno: "Gobernanza y Seguridad de la Información"
     columns:
       - name: usuario_sk
-        data_tests:
-          - not_null
-          - unique
+        description: >
+          Seudónimo del usuario: md5 de la parte numérica de la tarjeta (10 dígitos)
+          para Transmetro, Transurbano y MetroRiel; md5 de 'AEROMETRO|hash' para Aerómetro.
+        meta: {fuente: "silver.dim_usuario_conformado", transformacion: "md5 sobre la llave normalizada; la tarjeta nunca llega a Gold"}
+        data_tests: [not_null, unique]
+      - name: perfil
+        description: "Perfil tarifario vigente según el padrón CDC (solo existe para Transmetro)."
+        meta: {fuente: "cdc_padron_usuarios.csv -> silver.dim_usuario_actual", transformacion: "Último valor no nulo por secuencia (SCD2, versión actual)"}
+      - name: zona_residencia
+        description: "Zona de residencia vigente según el padrón CDC (solo Transmetro)."
+        meta: {fuente: "cdc_padron_usuarios.csv -> silver.dim_usuario_actual", transformacion: "Último valor no nulo por secuencia"}
+      - name: activo_en_transmetro
+        description: "Verdadero si la última operación CDC de la tarjeta no es DELETE."
+        meta: {fuente: "cdc_padron_usuarios.csv", transformacion: "op <> 'DELETE' en la versión actual; falso si no está en el padrón"}
+        data_tests: [not_null]
+      - name: modos_identificados
+        description: "Lista de modos donde aparece el usuario (padrón o viajes), separados por coma."
+        meta: {fuente: "silver.dim_usuario_conformado", transformacion: "string_agg(distinct modo)"}
+        data_tests: [not_null]
+      - name: cantidad_modos_identificados
+        description: "Cantidad de modos distintos del usuario. 2 o más = usuario multimodal (transbordo)."
+        meta: {fuente: "silver.dim_usuario_conformado", transformacion: "count(distinct modo)"}
+        data_tests: [not_null]
 
   - name: dim_zona
+    description: "Zonas con actividad de algún operador, con nombre normalizado."
+    meta:
+      dueno: "Dirección de Planificación Territorial"
     columns:
       - name: zona_sk
-        data_tests:
-          - not_null
-          - unique
+        description: "Llave sustituta de la zona (md5 del nombre normalizado)."
+        meta: {fuente: "silver.dim_zona_conformada", transformacion: "md5(zona_nombre)"}
+        data_tests: [not_null, unique]
       - name: zona_nombre
-        data_tests:
-          - not_null
-          - unique
+        description: "Nombre oficial: 'Zona N' o municipio con mayúscula inicial. Z10, ZONA 10 y district apuntan a la misma zona."
+        meta: {fuente: "tm_estaciones.zona, tu_paradas.sector, mr_estaciones.zona_nombre, am_estaciones.district", transformacion: "Normalización de formato (Z10 -> Zona 10, MIXCO -> Mixco)"}
+        data_tests: [not_null, unique]
